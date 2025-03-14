@@ -17,8 +17,8 @@ package main
 import (
 	"context"
 	"net/http"
-	"time"
 	"os"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
@@ -104,6 +104,7 @@ func ensureSessionID(next http.Handler) http.HandlerFunc {
 		} else {
 			sessionID = c.Value
 		}
+
 		ctx := context.WithValue(r.Context(), ctxKeySessionID{}, sessionID)
 		r = r.WithContext(ctx)
 		next.ServeHTTP(w, r)

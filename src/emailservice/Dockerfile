@@ -12,16 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM python:3.12.8-alpine@sha256:54bec49592c8455de8d5983d984efff76b6417a6af9b5dcc8d0237bf6ad3bd20 AS base
+FROM --platform=$BUILDPLATFORM python:3.12-slim AS base
 
 FROM base AS builder
 
-RUN apk update \
-    && apk add --no-cache g++ linux-headers \
-    && rm -rf /var/cache/apk/*
+RUN apt-get update \
+  && apt-get install -y g++ \
+  && rm -rf /var/lib/apt/lists/*
 
 # get packages
 COPY requirements.txt .
+# Install grpcio separately with --no-build-isolation to avoid hanging
+RUN pip install grpcio==1.59.2 --no-build-isolation
 RUN pip install -r requirements.txt
 
 FROM base
@@ -29,10 +31,6 @@ FROM base
 ENV PYTHONUNBUFFERED=1
 # Enable Profiler
 ENV ENABLE_PROFILER=1
-
-RUN apk update \
-    && apk add --no-cache libstdc++ \
-    && rm -rf /var/cache/apk/*
 
 WORKDIR /email_server
 

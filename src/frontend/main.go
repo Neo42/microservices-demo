@@ -101,6 +101,9 @@ func main() {
 	}
 	log.Out = os.Stdout
 
+	// Start CPU utilization monitoring
+	StartCPUUtilizationMonitoring()
+
 	svc := new(frontendServer)
 
 	otel.SetTextMapPropagator(
@@ -161,14 +164,19 @@ func main() {
 	r.HandleFunc(baseUrl + "/product-meta/{ids}", svc.getProductByID).Methods(http.MethodGet)
 	r.HandleFunc(baseUrl + "/bot", svc.chatBotHandler).Methods(http.MethodPost)
 
+	// Add Prometheus metrics endpoint
+	r.Handle(baseUrl + "/metrics", MetricsHandler())
+
 	var handler http.Handler = r
 	handler = &logHandler{log: log, next: handler}     // add logging
 	handler = ensureSessionID(handler)                 // add session ID
+	handler = MetricsMiddleware(handler)               // add metrics
 	handler = otelhttp.NewHandler(handler, "frontend") // add OTel tracing
 
 	log.Infof("starting server on " + addr + ":" + srvPort)
 	log.Fatal(http.ListenAndServe(addr+":"+srvPort, handler))
 }
+
 func initStats(log logrus.FieldLogger) {
 	// TODO(arbrown) Implement OpenTelemtry stats
 }

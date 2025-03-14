@@ -1,0 +1,208 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: locust-script
+data:
+  locustfile.py: |
+    from locust import HttpUser, task, between
+    import random
+    import json
+
+    products = [
+        "0PUK6V6EV0",
+        "1YMWWN1N4O",
+        "2ZYFJ3GM2N",
+        "66VCHSJNUP",
+        "6E92ZMYYFZ",
+        "9SIQT8TOJO",
+        "L9ECAV7KIM",
+        "LS4PSXUNUM",
+        "OLJCESPC7Z",
+    ]
+
+    class WebsiteUser(HttpUser):
+        wait_time = between(1, 3)
+
+        def on_start(self):
+            self.client.allow_redirects = True
+            self.client.verify = False
+            self.headers = {
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Encoding': 'gzip, deflate',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Connection': 'keep-alive',
+                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:78.0) Gecko/20100101 Firefox/78.0'
+            }
+            # Start with a session by visiting the homepage
+            try:
+                with self.client.get("/", headers=self.headers, catch_response=True) as response:
+                    if response.status_code == 200:
+                        response.success()
+                    else:
+                        print(f"Session init failed: {response.status_code} - {response.text}")
+                        response.failure(f"Session init failed: {response.status_code}")
+            except Exception as e:
+                print(f"Session init error: {str(e)}")
+
+            # Set currency
+            try:
+                with self.client.post(
+                    "/setCurrency",
+                    headers=self.headers,
+                    data={"currency_code": "USD"},
+                    catch_response=True
+                ) as response:
+                    if response.status_code in [200, 302]:
+                        response.success()
+                    else:
+                        print(f"Currency set failed: {response.status_code} - {response.text}")
+                        response.failure(f"Currency set failed: {response.status_code}")
+            except Exception as e:
+                print(f"Currency set error: {str(e)}")
+
+        @task(40)
+        def browse_products(self):
+            product_id = random.choice(products)
+            try:
+                with self.client.get(
+                    f"/product/{product_id}",
+                    headers=self.headers,
+                    catch_response=True
+                ) as response:
+                    if response.status_code == 200:
+                        response.success()
+                    else:
+                        print(f"Browse failed: {response.status_code} - {response.text}")
+                        response.failure(f"Browse failed: {response.status_code}")
+            except Exception as e:
+                print(f"Browse error: {str(e)}")
+
+        @task(20)
+        def search_products(self):
+            terms = ["shirt", "pants", "shoes", "hat", "watch"]
+            term = random.choice(terms)
+            try:
+                with self.client.get(
+                    "/",
+                    headers=self.headers,
+                    params={"q": term},
+                    catch_response=True
+                ) as response:
+                    if response.status_code == 200:
+                        response.success()
+                    else:
+                        print(f"Search failed: {response.status_code} - {response.text}")
+                        response.failure(f"Search failed: {response.status_code}")
+            except Exception as e:
+                print(f"Search error: {str(e)}")
+
+        @task(15)
+        def add_to_cart(self):
+            product_id = random.choice(products)
+            quantity = random.randint(1, 10)
+            try:
+                with self.client.post(
+                    "/cart",
+                    headers=self.headers,
+                    data={
+                        "product_id": product_id,
+                        "quantity": quantity
+                    },
+                    catch_response=True
+                ) as response:
+                    if response.status_code in [200, 302]:
+                        response.success()
+                    else:
+                        print(f"Add to cart failed: {response.status_code} - {response.text}")
+                        response.failure(f"Add to cart failed: {response.status_code}")
+            except Exception as e:
+                print(f"Add to cart error: {str(e)}")
+
+        @task(10)
+        def view_cart(self):
+            try:
+                with self.client.get(
+                    "/cart",
+                    headers=self.headers,
+                    catch_response=True
+                ) as response:
+                    if response.status_code == 200:
+                        response.success()
+                    else:
+                        print(f"View cart failed: {response.status_code} - {response.text}")
+                        response.failure(f"View cart failed: {response.status_code}")
+            except Exception as e:
+                print(f"View cart error: {str(e)}")
+
+        @task(5)
+        def checkout(self):
+            try:
+                checkout_data = {
+                    "email": "someone@example.com",
+                    "street_address": "1234 Test St",
+                    "zip_code": "94043",
+                    "city": "Mountain View",
+                    "state": "CA",
+                    "country": "United States",
+                    "credit_card_number": "4432801561520454",
+                    "credit_card_expiration_month": "12",
+                    "credit_card_expiration_year": "2025",
+                    "credit_card_cvv": "672"
+                }
+                with self.client.post(
+                    "/cart/checkout",
+                    headers={**self.headers, 'Content-Type': 'application/x-www-form-urlencoded'},
+                    data=checkout_data,
+                    catch_response=True
+                ) as response:
+                    if response.status_code in [200, 302]:
+                        response.success()
+                    else:
+                        print(f"Checkout failed: {response.status_code} - {response.text}")
+                        response.failure(f"Checkout failed: {response.status_code}")
+            except Exception as e:
+                print(f"Checkout error: {str(e)}")
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: locust
+spec:
+  selector:
+    matchLabels:
+      app: locust
+  template:
+    metadata:
+      labels:
+        app: locust
+    spec:
+      containers:
+        - name: locust
+          image: locustio/locust:latest
+          ports:
+            - containerPort: 8089
+          command: ["locust"]
+          args:
+            - "--locustfile=/mnt/locust/locustfile.py"
+            - "--host=http://frontend:80"
+            - "--web-port=8089"
+          volumeMounts:
+            - name: locust-script
+              mountPath: /mnt/locust
+      volumes:
+        - name: locust-script
+          configMap:
+            name: locust-script
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: locust
+spec:
+  type: NodePort
+  selector:
+    app: locust
+  ports:
+    - port: 8089
+      targetPort: 8089

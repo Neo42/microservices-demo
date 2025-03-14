@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM python:3.12.8-alpine@sha256:54bec49592c8455de8d5983d984efff76b6417a6af9b5dcc8d0237bf6ad3bd20 AS base
+FROM --platform=$BUILDPLATFORM python:3.12-slim AS base
 
 FROM base AS builder
 
-RUN apk update \
-    && apk add --no-cache wget g++ linux-headers \
-    && rm -rf /var/cache/apk/*
+RUN apt-get update \
+  && apt-get install -y wget g++ \
+  && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 
@@ -26,9 +26,10 @@ RUN pip install --prefix="/install" -r requirements.txt
 
 FROM base
 
-RUN apk update \
-    && apk add --no-cache libstdc++ \
-    && rm -rf /var/cache/apk/*
+# Note: libstdc++ is already included in the base image, no need to install it separately
+# RUN apt-get update \
+#   && apt-get install -y libstdc++ \
+#   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /loadgen
 
@@ -40,4 +41,5 @@ COPY locustfile.py .
 # enable gevent support in debugger
 ENV GEVENT_SUPPORT=True
 
-ENTRYPOINT locust --host="http://${FRONTEND_ADDR}" --headless -u "${USERS:-10}" -r "${RATE:-1}" 2>&1
+# Use shell form for ENTRYPOINT to allow environment variable substitution and redirection
+ENTRYPOINT ["sh", "-c", "locust --host=\"http://${FRONTEND_ADDR}\" --headless -u \"${USERS:-10}\" -r \"${RATE:-1}\" 2>&1"]

@@ -148,8 +148,8 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 		renderHTTPError(log, r, w, errors.New("product id not specified"), http.StatusBadRequest)
 		return
 	}
-	log.WithField("id", id).WithField("currency", currentCurrency(r)).
-		Debug("serving product page")
+	log = log.WithField("id", id).WithField("currency", currentCurrency(r))
+	log.Debug("serving product page")
 
 	p, err := fe.getProduct(r.Context(), id)
 	if err != nil {
@@ -212,23 +212,19 @@ func (fe *frontendServer) addToCartHandler(w http.ResponseWriter, r *http.Reques
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	quantity, _ := strconv.ParseUint(r.FormValue("quantity"), 10, 32)
 	productID := r.FormValue("product_id")
-	payload := validator.AddToCartPayload{
-		Quantity:  quantity,
-		ProductID: productID,
-	}
-	if err := payload.Validate(); err != nil {
-		renderHTTPError(log, r, w, validator.ValidationErrorResponse(err), http.StatusUnprocessableEntity)
+	if productID == "" || quantity == 0 {
+		renderHTTPError(log, r, w, errors.New("invalid form input"), http.StatusBadRequest)
 		return
 	}
-	log.WithField("product", payload.ProductID).WithField("quantity", payload.Quantity).Debug("adding to cart")
+	log.WithField("product", productID).WithField("quantity", quantity).Debug("adding to cart")
 
-	p, err := fe.getProduct(r.Context(), payload.ProductID)
+	p, err := fe.getProduct(r.Context(), productID)
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve product"), http.StatusInternalServerError)
 		return
 	}
 
-	if err := fe.insertCart(r.Context(), sessionID(r), p.GetId(), int32(payload.Quantity)); err != nil {
+	if err := fe.insertCart(r.Context(), sessionID(r), p.GetId(), int32(quantity)); err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "failed to add to cart"), http.StatusInternalServerError)
 		return
 	}
@@ -324,27 +320,33 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 	var (
 		email         = r.FormValue("email")
 		streetAddress = r.FormValue("street_address")
-		zipCode, _    = strconv.ParseInt(r.FormValue("zip_code"), 10, 32)
+		zipCode       = r.FormValue("zip_code")
 		city          = r.FormValue("city")
 		state         = r.FormValue("state")
 		country       = r.FormValue("country")
 		ccNumber      = r.FormValue("credit_card_number")
-		ccMonth, _    = strconv.ParseInt(r.FormValue("credit_card_expiration_month"), 10, 32)
-		ccYear, _     = strconv.ParseInt(r.FormValue("credit_card_expiration_year"), 10, 32)
-		ccCVV, _      = strconv.ParseInt(r.FormValue("credit_card_cvv"), 10, 32)
+		ccMonth       = r.FormValue("credit_card_expiration_month")
+		ccYear        = r.FormValue("credit_card_expiration_year")
+		ccCVV         = r.FormValue("credit_card_cvv")
 	)
+
+	// Convert string values to int64
+	zipCodeInt, _ := strconv.ParseInt(zipCode, 10, 64)
+	ccMonthInt, _ := strconv.ParseInt(ccMonth, 10, 64)
+	ccYearInt, _ := strconv.ParseInt(ccYear, 10, 64)
+	ccCVVInt, _ := strconv.ParseInt(ccCVV, 10, 64)
 
 	payload := validator.PlaceOrderPayload{
 		Email:         email,
 		StreetAddress: streetAddress,
-		ZipCode:       zipCode,
+		ZipCode:       zipCodeInt,
 		City:          city,
 		State:         state,
 		Country:       country,
 		CcNumber:      ccNumber,
-		CcMonth:       ccMonth,
-		CcYear:        ccYear,
-		CcCVV:         ccCVV,
+		CcMonth:       ccMonthInt,
+		CcYear:        ccYearInt,
+		CcCVV:         ccCVVInt,
 	}
 	if err := payload.Validate(); err != nil {
 		renderHTTPError(log, r, w, validator.ValidationErrorResponse(err), http.StatusUnprocessableEntity)

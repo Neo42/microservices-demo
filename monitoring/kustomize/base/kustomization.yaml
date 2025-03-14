@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - prometheus.yaml
+  - grafana.yaml
+  - locust.yaml
+
+configMapGenerator:
+  - name: grafana-datasources
+    files:
+      - prometheus-datasource.yaml=../../dashboards/prometheus-datasource.yaml
+
+  - name: grafana-dashboard-provider
+    files:
+      - dashboard-provider.yaml=../../dashboards/dashboard-provider.yaml
+
+  - name: grafana-dashboards
+    files:
+      - microservices-dashboard.json=../../dashboards/microservices-dashboard.json
+
+# Remove the volume mounts from grafana.yaml that reference the ConfigMaps
+# since they will be generated with different names by Kustomize
+patchesJson6902:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: grafana
+    path: grafana-patch.yaml

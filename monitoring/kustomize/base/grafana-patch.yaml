@@ -1,0 +1,20 @@
+- op: replace
+  path: /spec/template/spec/volumes/0
+  value:
+    name: grafana-datasources
+    configMap:
+      name: grafana-datasources-k8s
+
+- op: replace
+  path: /spec/template/spec/volumes/1
+  value:
+    name: grafana-dashboard-provider
+    configMap:
+      name: grafana-dashboard-provider-k8s
+
+- op: replace
+  path: /spec/template/spec/volumes/2
+  value:
+    name: grafana-dashboards
+    configMap:
+      name: grafana-dashboards-k8s
