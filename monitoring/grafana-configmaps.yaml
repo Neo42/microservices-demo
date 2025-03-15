@@ -354,13 +354,13 @@ data:
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "rate(frontend_http_request_duration_seconds_sum{job=\"kubernetes-pods\"}[1m]) / rate(frontend_http_request_duration_seconds_count{job=\"kubernetes-pods\"}[1m])",
+              "expr": "histogram_quantile(0.5, sum by (pod_name, le) (rate(frontend_http_request_duration_seconds_bucket{job=\"kubernetes-pods\"}[1m])))",
               "legendFormat": "{{pod_name}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Average Response Time",
+          "title": "50th Percentile Response Time (Median)",
           "type": "timeseries"
         },
         {
